@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8"/>
+	<title>VR-KyoyoKaikan</title>
+	<script src="https://aframe.io/releases/0.9.1/aframe.min.js"></script>
+</head>
+<body>
+<script>"use strict"
+
+let sky
+let dir
+
+let list = [
+	{ src: 23, dir: 268, next: [ { dir: 268, src: 1 } ] }, // 0 建物前
+	{ src: 22, dir: 207, next: [ { dir: 274, src: 2 }, { dir: 213, src: 3 }, { dir: 147, src: 11 } ] }, // 1 1Fエントランス
+	{ src: 21, dir: 268, next: [ { dir: 207, src: 3 } ] }, // 2 1Fホール入り口
+	{ src: 20, dir: 217, next: [ { dir: 217, src: 4 } ] }, // 3 1Fホール前
+	{ src: 19, dir: 212, next: [ { dir: 299, src: 5 } ] }, // 4 1F突き当り
+	{ src: 18, dir: -25, next: [ { dir: -25, src: 6 } ] }, // 5 右階段
+	{ src: 17, dir: 185, next: [ { dir: 281, src: 7 }, { dir: 107, src: 0 } ] }, // 6 大会議室前、建物前へワープ
+	{ src: 11, dir: 212, next: [ { dir: 212, src: 9 }, { dir: 212 - 180, src: 6 } ]  }, // 7 大会議室4 入り口付近
+	{ src: 8, dir: 401, next: [  ] }, // x 8 大会議室1 - 使わない
+	{ src: 9, dir: 402, next: [ { dir: 402, src: 10 }, { dir: 597, src: 7 } ]  }, // 9 大会議室2 ステージ付近
+	{ src: 10, dir: 212, next: [ { dir: 316, src: 9 } ]  }, // 10 大会議室3 // 倉庫
+	{ src: 13, dir: 84, next: [ { dir: 223, src: 1 }, { dir: 116, src: 12 } ]  }, // 11 1Fふきぬけ
+	{ src: 15, dir: 84, next: [ { dir: 174, src: 6 }, { dir: 259, src: 11 } ]  }, // 12 2F出窓
+
+	{ src: 0, dir: 259, next: [ { dir: 300, src: "naka" }, { dir: 441, src: "roka" } ] }, // 外ベランダ
+	{ src: 1, dir: 100 }, // 1F 自販機
+	{ src: 16, dir: 100 }, // 中庭2F
+]
+let cur = 0
+
+const initScene = function() {
+	const scene = document.querySelector('a-scene')
+	sky = document.createElement('a-sky')
+	scene.appendChild(sky)
+	if (document.location.hash.length > 1) {
+		cur = parseInt(document.location.hash.substring(1))
+	}
+	set(list[cur])
+}
+let pnts = []
+
+const addPoint = function(deg, n) {
+	const r = 1
+	const sp = document.createElement('a-sphere')
+	const th = deg / 180 * Math.PI - Math.PI / 2
+	const x = Math.cos(th) * r
+	const y = -.5
+	const z = Math.sin(th) * r
+	sp.setAttribute('position', { x: x, y: y, z: z })
+	sp.setAttribute('radius', .1)
+	sp.setAttribute('class', 'collidable')
+	sp.setAttribute('static-body', '')
+//	sky.setAttribute('src', "582447250.407572.JPG")
+	scene.appendChild(sp)
+	
+	sp.url = list[n]
+	sp.idx = n
+	
+	/*
+	sp.addEventListener('mouseenter', function () {
+		sp.setAttribute('scale', {x: 1.3, y: 1.3, z: 1.3});
+		sp.mode = true
+		setTimeout(function() {
+			if (sp.mode) {
+				set(list[this.idx])
+				sp.setAttribute('scale', {x: 1, y: 1, z: 1});
+			}
+		}, 500)
+	})
+	sp.addEventListener('mouseleave', function () {
+		sp.setAttribute('scale', {x: 1, y: 1, z: 1});
+		sp.mode = false
+	})
+	*/
+	pnts.push(sp)
+}
+let loading = false
+const set = function(img360, callback) {
+	if (loading)
+		return false
+	let img = new Image()
+	const id = img360.src
+	img.src = "img360-kyoyokaikan/kyoyokaikan-" + (id < 10 ? "0" : "") + id + ".jpg"
+	dir = img360.dir
+	loading = true
+	img.onload = function() {
+		loading = false
+		sky.setAttribute('rotation', "0 " + dir + " 0")
+		sky.setAttribute('src', this.src)
+		if (callback)
+			callback()
+	}
+	for (let p of pnts) {
+		scene.removeChild(p)
+	}
+	pnts = []
+	for (let n of img360.next) {
+		addPoint(n.dir - dir, n.src)
+	}
+	return true
+}
+AFRAME.registerComponent('input-listener', {
+	init:function() {
+		initScene()
+
+		this.el.addEventListener('axismove',function(e) {
+			const dx = e.detail.axis[0]
+			const dy = e.detail.axis[1]
+//    	txt.setAttribute("value", "Stick  x:" + dx.toFixed(2) + ", y:" + dy.toFixed(2))
+			txt.setAttribute("value", "dir: " + dir)
+			dir += dx
+			sky.setAttribute('rotation', "0 " + dir + " 0")
+		})
+
+		let selected = null
+    this.el.addEventListener('raycaster-intersection', function(e) {
+			if (selected == null) {
+				selected = e.detail.els[0]
+//				txt.setAttribute('value', "" + selected)
+				set(list[selected.idx])
+			}
+    })
+    this.el.addEventListener('raycaster-intersection-cleared', function(e) {
+			txt.setAttribute('value', "")
+			selected = null
+		})
+
+		this.el.addEventListener('triggerdown', function(e) {
+			//this.txt.setAttribute("value","Trigger down")
+			set(list[++cur])
+		})
+	}
+})
+</script>
+
+<a-scene id="scene">
+	<!--<a-sky color="#000000"></a-sky>-->
+	<!--<a-plane rotation="-90 0 0" width="50" height="50" color="#333333"></a-plane>-->
+
+	<!--
+	<a-entity id=handleft oculus-touch-controls="hand: left"></a-entity>
+	<a-entity id=handright oculus-touch-controls="hand: right"></a-entity>
+-->
+<!--<a-entity id="handleft" laser-controls="hand: left" input-listener="hand: left"></a-entity>
+	-->
+<a-entity id="handright" laser-controls="hand: right" raycaster="objects: .collidable; far:1.2;" input-listener="hand: right"></a-entity>
+
+	<a-entity camera look-controls>
+	</a-entity>
+<!--
+	<a-entity camera look-controls wasd-controls>
+		<a-cursor></a-cursor>
+	</a-entity>
+	-->
+	<a-entity camera look-controls position="0 1.6 0">
+		<a-text id="txt" value="" position="0 0 -1" scale="0.4 0.4 0.4" align="center" color="#000000"></a-text>
+	</a-entity>
+</a-scene>				
+
+</body>
+</html>
